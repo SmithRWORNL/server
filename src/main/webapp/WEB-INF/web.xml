@@ -29,11 +29,30 @@
         <servlet-class>org.glassfish.jersey.servlet.ServletContainer</servlet-class>
         <init-param>
             <param-name>jersey.config.server.provider.classnames</param-name>
-            <param-value>gov.osti.services.Metadata,gov.osti.services.Types,gov.osti.services.Validation</param-value>
+            <param-value>gov.osti.services.Metadata,gov.osti.services.Types,gov.osti.services.Validation, gov.osti.services.Authentication, gov.osti.services.Login</param-value>
         </init-param>
     </servlet>
     <servlet-mapping>
         <servlet-name>DOECode</servlet-name>
         <url-pattern>/services/*</url-pattern>
     </servlet-mapping>
+
+	<listener>
+		<listener-class>org.apache.shiro.web.env.EnvironmentLoaderListener</listener-class>
+	</listener>
+
+	<filter>
+		<filter-name>ShiroFilter</filter-name>
+		<filter-class>org.apache.shiro.web.servlet.ShiroFilter</filter-class>
+	</filter>
+
+	<filter-mapping>
+		<filter-name>ShiroFilter</filter-name>
+		<url-pattern>/*</url-pattern>
+		<dispatcher>REQUEST</dispatcher>
+		<dispatcher>FORWARD</dispatcher>
+		<dispatcher>INCLUDE</dispatcher>
+		<dispatcher>ERROR</dispatcher>
+	</filter-mapping>
+	
 </web-app>
