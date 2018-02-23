@@ -11,7 +11,6 @@ import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
 import javax.persistence.MappedSuperclass;
-import javax.validation.constraints.Size;
 
 /**
  * Superclass for Organization type relations.
@@ -46,7 +45,6 @@ public class Organization implements Serializable {
     /**
      * @return the organizationName
      */
-    @Size (max=1000, message = "Organization name is limited to 1000 characters.")
     @Column (length = 1000, name = "ORGANIZATION_NAME")
     public String getOrganizationName() {
         return organizationName;

@@ -136,6 +136,76 @@
 	          <version>${jersey.version}</version>
 	        </dependency>
 	        <dependency>
+    <groupId>org.glassfish.jersey.containers</groupId>
+    <artifactId>jersey-container-servlet-core</artifactId>
+    <version>${jersey.version}</version>
+</dependency>
+<dependency>
+    <groupId>org.glassfish.jersey.bundles.repackaged</groupId>
+    <artifactId>jersey-guava</artifactId>
+    <version>${jersey.version}</version>
+</dependency>
+<dependency>
+    <groupId>org.glassfish.jersey.ext</groupId>
+    <artifactId>jersey-mvc</artifactId>
+    <version>${jersey.version}</version>
+</dependency>
+<dependency>
+    <groupId>org.glassfish.jersey.ext</groupId>
+    <artifactId>jersey-entity-filtering</artifactId>
+    <version>${jersey.version}</version>
+</dependency>
+<dependency>
+    <groupId>org.jvnet.mimepull</groupId>
+    <artifactId>mimepull</artifactId>
+    <version>1.9.7</version>
+</dependency>
+<dependency>
+    <groupId>javax.inject</groupId>
+    <artifactId>javax.inject</artifactId>
+    <version>1</version>
+</dependency>
+<dependency>
+    <groupId>org.glassfish.jersey.bundles.repackaged</groupId>
+    <artifactId>jersey-guava</artifactId>
+    <version>${jersey.version}</version>
+</dependency>
+<dependency>
+    <groupId>javax.validation</groupId>
+    <artifactId>validation-api</artifactId>
+    <version>2.0.0.Final</version>
+</dependency>
+<dependency>
+    <groupId>org.glassfish.hk2</groupId>
+    <artifactId>hk2-api</artifactId>
+    <version>2.5.0-b61</version>
+</dependency>
+<dependency>
+    <groupId>org.glassfish.hk2</groupId>
+    <artifactId>hk2-locator</artifactId>
+    <version>2.5.0-b61</version>
+</dependency>
+<dependency>
+    <groupId>org.glassfish.hk2</groupId>
+    <artifactId>hk2-utils</artifactId>
+    <version>2.5.0-b61</version>
+</dependency>
+<dependency>
+    <groupId>org.glassfish.jersey.core</groupId>
+    <artifactId>jersey-server</artifactId>
+    <version>${jersey.version}</version>
+</dependency>
+<dependency>
+    <groupId>org.glassfish.jersey.core</groupId>
+    <artifactId>jersey-common</artifactId>
+    <version>${jersey.version}</version>
+</dependency>
+<dependency>
+    <groupId>javax.ws.rs</groupId>
+    <artifactId>javax.ws.rs-api</artifactId>
+    <version>2.1</version>
+</dependency>
+	        <dependency>
 	          <groupId>org.glassfish.jersey.core</groupId>
 	          <artifactId>jersey-client</artifactId>
 	          <version>${jersey.version}</version>
@@ -179,31 +249,12 @@
 	  <type>jar</type>
 	 </dependency>
 
-         <!-- javax bean validation reference spec -->
-         <dependency>
-             <groupId>javax.validation</groupId>
-             <artifactId>validation-api</artifactId>
-             <version>2.0.0.Final</version>
-         </dependency>
-
-         <!-- Java Bean validation libraries from Hibernate -->
-         <dependency>
-             <groupId>org.hibernate.validator</groupId>
-             <artifactId>hibernate-validator</artifactId>
-             <version>6.0.2.Final</version>
-         </dependency>
-         <dependency>
-             <groupId>org.hibernate.validator</groupId>
-             <artifactId>hibernate-validator-annotation-processor</artifactId>
-             <version>6.0.2.Final</version>
-         </dependency>
 	 
-        <!-- apache shiro authentication layer -->
-	<dependency>
+	 	<dependency>
     		<groupId>org.apache.shiro</groupId>
     		<artifactId>shiro-core</artifactId>
      		<version>1.3.2</version>
-	</dependency>
+		</dependency>
 
 		<dependency>
 			<groupId>org.apache.shiro</groupId>
@@ -218,11 +269,42 @@
 		</dependency>
 		
 		<dependency>
+    <groupId>commons-codec</groupId>
+    <artifactId>commons-codec</artifactId>
+    <version>1.11</version>
+</dependency>
+<dependency>
+    <groupId>io.buji</groupId>
+    <artifactId>buji-pac4j</artifactId>
+    <version>3.1.0</version>
+</dependency>
+<dependency>
+    <groupId>org.pac4j</groupId>
+    <artifactId>pac4j-saml</artifactId>
+    <version>2.2.1</version>
+</dependency>
+<dependency>
+    <groupId>org.opensaml</groupId>
+    <artifactId>opensaml</artifactId>
+    <version>1.1</version>
+</dependency>
+<dependency>
+    <groupId>org.apache.santuario</groupId>
+    <artifactId>xmlsec</artifactId>
+    <version>1.4.3</version>
+</dependency>
+		
+		<dependency>
     		<groupId>io.jsonwebtoken</groupId>
    			<artifactId>jjwt</artifactId>
     		<version>0.7.0</version>
 		</dependency>
 
+		<dependency>
+    		<groupId>org.apache.shiro</groupId>
+    		<artifactId>shiro-cas</artifactId>
+    		<version>1.4.0</version>
+		</dependency>
 		
 		<dependency>
 			<groupId>org.apache.commons</groupId>
@@ -252,8 +334,17 @@
                     <targetPath>../filtered-resources</targetPath>
                 </resource>
             </resources>
+            
+            
 
 		<plugins>
+        <plugin>
+            <artifactId>maven-compiler-plugin</artifactId>
+            <configuration>
+                <source>1.8</source>
+                <target>1.8</target>
+            </configuration>
+        </plugin>
                   <plugin>
                       <groupId>org.apache.maven.plugins</groupId>
                       <artifactId>maven-surefire-plugin</artifactId>
@@ -290,12 +381,22 @@
 				<artifactId>tomcat7-maven-plugin</artifactId>
 				<version>2.2</version>
 				<configuration>
+					<!-- <update>true</update> -->
 					<url>http://${host}:${port}/manager/text</url>
 					<server>${server}</server>
 					<path>/${projectName}</path>
+                                        <warFile>${project.build.directory}/${projectName}.war</warFile>                  
+
+				</configuration>
+				<!-- <configuration>
+					<url>http://localhost:8080/manager/text</url>
+					<server>myserver</server>
+					<path>/${projectName}</path>
                                         <warFile>${project.build.directory}/${projectName}.war</warFile>
                                         <path>/${projectName}</path>
-				</configuration>
+                    <username>admin</username>
+                    <password>admin</password>
+				</configuration> -->
 			</plugin>
 
 			<plugin>
