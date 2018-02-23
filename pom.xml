@@ -327,7 +327,17 @@
                 <resource>
                     <directory>src/main/resources</directory>
                     <filtering>true</filtering>
+                    <excludes>
+            			<exclude>samlKeystore.jks</exclude>
+        			</excludes>
                 </resource>
+                    <resource>
+				        <directory>src/main/resources</directory>
+				        <filtering>false</filtering>
+				        <includes>
+				            <include>samlKeystore.jks</include>
+				        </includes>
+				    </resource>
                 <resource>
                     <directory>src/main/webapp</directory>
                     <filtering>true</filtering>
