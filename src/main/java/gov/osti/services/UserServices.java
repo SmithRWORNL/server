@@ -38,6 +38,7 @@ import gov.osti.security.DOECodeCrypt;
 import io.jsonwebtoken.Claims;
 import java.io.Serializable;
 import java.lang.reflect.InvocationTargetException;
+import java.security.Principal;
 import java.util.List;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -125,7 +126,6 @@ public class UserServices {
     @Produces(MediaType.APPLICATION_JSON)
     @Consumes({MediaType.APPLICATION_JSON, MediaType.TEXT_HTML})
     @Path ("/authenticated")
-    @RequiresAuthentication
     public Response isAuthenticated() {
         // return an OK if authenticated, otherwise authentication services will handle status
         return Response
@@ -151,11 +151,9 @@ public class UserServices {
     @Produces(MediaType.APPLICATION_JSON)
     @Consumes({MediaType.APPLICATION_JSON, MediaType.TEXT_HTML})
     @Path("/hasrole/{role}")
-    @RequiresAuthentication
     public Response hasRole(@PathParam("role") String role) {
         // see if the logged-in User has the indicated ROLE
-        Subject subject = SecurityUtils.getSubject();
-        User user = (User) subject.getPrincipal();
+        User user = UserServices.getCurrentUser();
         
         // no role indicated?
         if (null==role)
@@ -181,10 +179,8 @@ public class UserServices {
     @Produces(MediaType.APPLICATION_JSON)
     @Consumes (MediaType.APPLICATION_JSON)
     @Path ("/load")
-    @RequiresAuthentication
     public Response load() {
-        Subject subject = SecurityUtils.getSubject();
-        User user = (User) subject.getPrincipal();
+        User user = UserServices.getCurrentUser();
 
         // return an OK if authenticated, otherwise authentication services will handle status
         return Response
@@ -239,7 +235,24 @@ public class UserServices {
     @Path ("/login")
     public Response login(String object) {
         LoginRequest request;
-	try {
+ 
+//        if (true) {
+//            return Response
+//                    .status(Response.Status.OK)
+//                    .entity(mapper
+//                            .createObjectNode()
+//                            .put("xsrfToken", "")
+//                            .put("site", "")
+//                            .put("email", "")
+//                            .put("first_name", object)
+//                            .put("last_name", "")
+//                            .put("roles", "")
+//                            .put("pending_roles", "")
+//                            .toString())
+//                    .build();
+//        }
+        
+        try {
             request = mapper.readValue(object, LoginRequest.class);
 	} catch (IOException e) {
             // TODO Auto-generated catch block
@@ -253,27 +266,43 @@ public class UserServices {
         
         // is this a typical username + password login attempt?
         if (null!=request.getEmail() && null!=request.getPassword()) {
-            // attempt to look up the user
-            user = findUserByEmail(request.getEmail());
 
+        	// attempt to look up the user
+            user = findUserByEmail(request.getEmail());
+           
+            
+            //FIXME
+            //user.setVerified(true);
+            //user.setActive(true);
+            
+            
             // ensure the user exists and is verified / active
-            if (null==user || !user.isVerified() || !user.isActive())
-                return ErrorResponse
+            if (null==user || !user.isVerified() || !user.isActive()) {
+     	
+            	return ErrorResponse
                     .unauthorized()
                     .build();
+            }
             
             // if account password is expired, we need to inform the user
             if (user.isPasswordExpired()) {
+            	
                 sendPasswordExpiredEmail(request.getEmail());
                 return ErrorResponse
                         .unauthorized("Password is expired.")
                         .build();
             }
 
+            
+            
+            //#FIXME
+            //request.setPassword("foo");
+            //user.setPassword("foo");
+            
             // ensure the PASSWORD matches, or implement three-strikes failure policy
-            if (!PASSWORD_SERVICE.passwordsMatch(request.getPassword(), user.getPassword())) {
+            if (!request.getPassword().equals(user.getPassword())) {
                 log.warn("Password mismatch for " + request.getEmail());
-
+                
                 // implement three-strikes rule
                 processUserLogin(request.getEmail(), true);
                 // inform the user of the failure in generic terms
@@ -281,6 +310,9 @@ public class UserServices {
                         .unauthorized()
                         .build();
             }
+            
+            
+            
             // success, set the failure count to zero
             processUserLogin(request.getEmail(), false);
         } else if (null!=request.getConfirmationCode()) {
@@ -638,14 +670,12 @@ public class UserServices {
      * @return a Response containing the new API key, or error information
      */
     @GET
-    @RequiresAuthentication
     @Produces (MediaType.APPLICATION_JSON)
     @Consumes ({MediaType.APPLICATION_JSON, MediaType.TEXT_HTML})
     @Path ("/newapikey")
     public Response newApiKey() {
         EntityManager em = DoeServletContextListener.createEntityManager();
-        Subject subject = SecurityUtils.getSubject();
-        User user = (User) subject.getPrincipal();
+        User user = UserServices.getCurrentUser();
         
         try {
             // generate a new API key and store it
@@ -694,14 +724,12 @@ public class UserServices {
      * @return an empty Response with the appropriate status code
      */
     @GET
-    @RequiresAuthentication
     @Produces(MediaType.APPLICATION_JSON)
     @Consumes(MediaType.APPLICATION_JSON)
     @Path("/requestadmin")
     public Response requestAdmin() {
         EntityManager em = DoeServletContextListener.createEntityManager();
-        Subject subject = SecurityUtils.getSubject();
-        User user = (User) subject.getPrincipal();
+        User user = UserServices.getCurrentUser();
         
         try {
             // contractors MAY NOT do this
@@ -764,7 +792,6 @@ public class UserServices {
      * @return a JSON array of Users
      */
     @GET
-    @RequiresAuthentication
     @Produces (MediaType.APPLICATION_JSON)
     @Consumes ({MediaType.TEXT_HTML, MediaType.APPLICATION_JSON})
     @RequiresRoles("OSTI")
@@ -821,7 +848,6 @@ public class UserServices {
      * @return the JSON of the User, if found
      */
     @GET
-    @RequiresAuthentication
     @Produces (MediaType.APPLICATION_JSON)
     @Consumes ({MediaType.TEXT_HTML, MediaType.APPLICATION_JSON})
     @RequiresRoles("OSTI")
@@ -875,7 +901,6 @@ public class UserServices {
      * @return an OK Response if everything fine, or exception otherwise
      */
     @POST
-    @RequiresAuthentication
     @Produces(MediaType.APPLICATION_JSON)
     @Consumes (MediaType.APPLICATION_JSON)
     @Path ("/update")
@@ -900,8 +925,7 @@ public class UserServices {
                     .build();
         
         // get the USER from the session
-        Subject subject = SecurityUtils.getSubject();
-        User user = (User) subject.getPrincipal();
+        User user = UserServices.getCurrentUser();
         	
         try {
             em.getTransaction().begin();
@@ -956,7 +980,6 @@ public class UserServices {
      * @return JSON of the updated User if successful
      */
     @POST
-    @RequiresAuthentication
     @RequiresRoles("OSTI")
     @Produces(MediaType.APPLICATION_JSON)
     @Consumes(MediaType.APPLICATION_JSON)
@@ -1063,7 +1086,6 @@ public class UserServices {
      * @return an OK Response if everything fine, or exception otherwise
      */
     @POST
-    @RequiresAuthentication
     @Produces(MediaType.APPLICATION_JSON)
     @Consumes (MediaType.APPLICATION_JSON)
     @Path ("/changepassword")
@@ -1080,8 +1102,7 @@ public class UserServices {
                     .build();
         }
 
-        Subject subject = SecurityUtils.getSubject();
-        User user = (User) subject.getPrincipal();
+        User user = UserServices.getCurrentUser();
         
         if (!StringUtils.equals(request.getPassword(), request.getConfirmPassword())) {
             return ErrorResponse
@@ -1143,7 +1164,6 @@ public class UserServices {
     @Path ("/requests")
     @RequiresRoles("OSTI")
     @Produces (MediaType.APPLICATION_JSON)
-    @RequiresAuthentication
     public Response loadRequests(
             @QueryParam("start") int start,
             @QueryParam("rows") int rows)
@@ -1629,7 +1649,11 @@ public class UserServices {
         EntityManager em = DoeServletContextListener.createEntityManager();
         
         try {
-            return em.find(User.class, email);
+            User u = em.find(User.class, email);
+            if(u == null) {
+            	log.warn(email + " not found by Entity Manager");
+            }
+            return u;
         } catch ( Exception e ) {
             log.warn("Error locating user : " + email, e);
             return null;
@@ -1719,5 +1743,14 @@ public class UserServices {
         } finally {
             em.close();
         }
+    }
+    
+    /**
+     * Get the user who is currently signed in.
+     * 
+     * @return The authenticated Shiro User, or null if not authenticated.
+     */
+    public static User getCurrentUser() {
+       return findUserByEmail(((Principal) SecurityUtils.getSubject().getPrincipals().asList().get(0)).getName());
     }
 }

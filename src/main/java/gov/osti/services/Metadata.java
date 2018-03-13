@@ -34,6 +34,8 @@ import gov.osti.entity.SponsoringOrganization;
 import gov.osti.entity.User;
 import gov.osti.indexer.AgentSerializer;
 import gov.osti.listeners.DoeServletContextListener;
+import gov.osti.services.UserServices;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -42,6 +44,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.security.Principal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -249,7 +252,6 @@ public class Metadata {
     @GET
     @Path ("reservedoi")
     @Produces (MediaType.APPLICATION_JSON)
-    @RequiresAuthentication
     public Response reserveDoi() throws IOException {
         // attempt to reserve a DOI
         DoiReservation reservation = getReservedDoi();
@@ -281,11 +283,11 @@ public class Metadata {
     @GET
     @Path ("{codeId}")
     @Produces ({MediaType.APPLICATION_JSON, "text/yaml", MediaType.APPLICATION_XML})
-    @RequiresAuthentication
     public Response getSingleRecord(@PathParam("codeId") Long codeId, @QueryParam("format") String format) {
         EntityManager em = DoeServletContextListener.createEntityManager();
         Subject subject = SecurityUtils.getSubject();
-        User user = (User) subject.getPrincipal();
+        
+        User user = UserServices.getCurrentUser();
 
         // no CODE ID?  Bad request.
         if (null==codeId)
@@ -425,16 +427,16 @@ public class Metadata {
     @GET
     @Path ("/projects")
     @Produces (MediaType.APPLICATION_JSON)
-    @RequiresAuthentication
     public Response listProjects(
             @QueryParam("rows") int rows, 
             @QueryParam("start") int start) 
             throws JsonProcessingException {
         EntityManager em = DoeServletContextListener.createEntityManager();
 
+        log.info("Entered Metadata function");
+        
         // get the security user in context
-        Subject subject = SecurityUtils.getSubject();
-        User user = (User) subject.getPrincipal();
+        User user = UserServices.getCurrentUser();
 
         try {
             Set<String> roles = user.getRoles();
@@ -505,7 +507,6 @@ public class Metadata {
     @Path ("/projects/pending")
     @Consumes (MediaType.APPLICATION_JSON)
     @Produces (MediaType.APPLICATION_JSON)
-    @RequiresAuthentication
     @RequiresRoles("OSTI")
     public Response listProjectsPending(@QueryParam("start") int start,
                                         @QueryParam("rows") int rows,
@@ -867,7 +868,7 @@ public class Metadata {
     private Response doSave(String json, InputStream file, FormDataContentDisposition fileInfo) {
         EntityManager em = DoeServletContextListener.createEntityManager();
         Subject subject = SecurityUtils.getSubject();
-        User user = (User) subject.getPrincipal();
+        User user = UserServices.getCurrentUser();
 
         try {
             em.getTransaction().begin();
@@ -936,7 +937,7 @@ public class Metadata {
     private Response doSubmit(String json, InputStream file, FormDataContentDisposition fileInfo) {
         EntityManager em = DoeServletContextListener.createEntityManager();
         Subject subject = SecurityUtils.getSubject();
-        User user = (User) subject.getPrincipal();
+        User user = UserServices.getCurrentUser();
 
         try {
             DOECodeMetadata md = DOECodeMetadata.parseJson(new StringReader(json));
@@ -1039,7 +1040,7 @@ public class Metadata {
     private Response doAnnounce(String json, InputStream file, FormDataContentDisposition fileInfo) {
         EntityManager em = DoeServletContextListener.createEntityManager();
         Subject subject = SecurityUtils.getSubject();
-        User user = (User) subject.getPrincipal();
+        User user = UserServices.getCurrentUser();
 
         try {
             DOECodeMetadata md = DOECodeMetadata.parseJson(new StringReader(json));
@@ -1193,7 +1194,6 @@ public class Metadata {
     @Consumes (MediaType.MULTIPART_FORM_DATA)
     @Produces (MediaType.APPLICATION_JSON)
     @Path ("/submit")
-    @RequiresAuthentication
     public Response submitFile(@FormDataParam("metadata") String metadata,
             @FormDataParam("file") InputStream file,
             @FormDataParam("file") FormDataContentDisposition fileInfo) {
@@ -1215,7 +1215,6 @@ public class Metadata {
     @Consumes ( MediaType.APPLICATION_JSON )
     @Produces ( MediaType.APPLICATION_JSON )
     @Path ("/submit")
-    @RequiresAuthentication
     public Response submit(String object) {
         return doSubmit(object, null, null);
     }
@@ -1236,7 +1235,6 @@ public class Metadata {
     @Consumes ( MediaType.APPLICATION_JSON )
     @Produces ( MediaType.APPLICATION_JSON )
     @Path ("/announce")
-    @RequiresAuthentication
     public Response announce(String object) {
         return doAnnounce(object, null, null);
     }
@@ -1260,7 +1258,6 @@ public class Metadata {
     @Consumes (MediaType.MULTIPART_FORM_DATA)
     @Produces (MediaType.APPLICATION_JSON)
     @Path ("/announce")
-    @RequiresAuthentication
     public Response announceFile(@FormDataParam("metadata") String metadata,
             @FormDataParam("file") InputStream file,
             @FormDataParam("file") FormDataContentDisposition fileInfo) {
@@ -1278,7 +1275,6 @@ public class Metadata {
     @POST
     @Consumes ( MediaType.APPLICATION_JSON )
     @Produces ( MediaType.APPLICATION_JSON )
-    @RequiresAuthentication
     @Path ("/save")
     public Response save(String object) {
         return doSave(object, null, null);
@@ -1296,7 +1292,6 @@ public class Metadata {
     @POST
     @Consumes (MediaType.MULTIPART_FORM_DATA)
     @Produces (MediaType.APPLICATION_JSON)
-    @RequiresAuthentication
     @Path ("/save")
     public Response save(@FormDataParam("metadata") String metadata,
             @FormDataParam("file") InputStream file,
@@ -1307,7 +1302,6 @@ public class Metadata {
     @GET
     @Produces (MediaType.APPLICATION_JSON)
     @Path ("/reindex")
-    @RequiresAuthentication
     @RequiresRoles ("OSTI")
     public Response reindex() throws IOException {
         EntityManager em = DoeServletContextListener.createEntityManager();
@@ -1347,12 +1341,11 @@ public class Metadata {
     @GET
     @Path ("/approve/{codeId}")
     @Produces (MediaType.APPLICATION_JSON)
-    @RequiresAuthentication
     @RequiresRoles("OSTI")
     public Response approve(@PathParam("codeId") Long codeId) {
         EntityManager em = DoeServletContextListener.createEntityManager();
         Subject subject = SecurityUtils.getSubject();
-        User user = (User) subject.getPrincipal();
+        User user = UserServices.getCurrentUser();
 
         try {
             DOECodeMetadata md = em.find(DOECodeMetadata.class, codeId);
@@ -1541,4 +1534,5 @@ public class Metadata {
 
         return reasons;
     }
+    
 }

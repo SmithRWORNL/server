@@ -12,6 +12,7 @@ import javax.servlet.ServletContextEvent;
 import javax.servlet.ServletContextListener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import java.lang.Exception;
 
 /**
  * Web application lifecycle listener.
@@ -91,9 +92,15 @@ public class DoeServletContextListener implements ServletContextListener {
      * @return an EntityManager from the Factory if possible
      */
     public static EntityManager createEntityManager() {
-        if (null==emf)
-            throw new IllegalStateException("Context not initialized!");
+        if (null==emf) {
+        	throw new IllegalStateException("Context not initialized!");
         
+        }
+        try {
         return emf.createEntityManager();
+        } catch( Exception e) {
+        	log.info(e.getMessage());
+        }
+        return null;
     }
 }

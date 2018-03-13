@@ -25,12 +25,10 @@ public Authentication() {
 
 @GET
 @Path ("/check")
-@RequiresAuthentication
 @RequiresRoles("Admin")
 public Response check() {
 
-	Subject subject = SecurityUtils.getSubject();
-	User currentUser = (User) subject.getPrincipal();
+    User user = UserServices.getCurrentUser();
 
     return Response.ok().build();
 }
