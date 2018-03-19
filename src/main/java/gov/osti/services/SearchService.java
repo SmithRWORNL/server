@@ -229,7 +229,8 @@ public class SearchService {
     @Produces ({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML, "text/yaml"})
     @Consumes (MediaType.APPLICATION_JSON)
     public Response search(String parameters, @QueryParam("format") String format) throws IOException, URISyntaxException {
-        // no search configured, you get nothing
+
+    	// no search configured, you get nothing
         if ("".equals(SEARCH_URL))
             return Response
                     .status(Response.Status.NO_CONTENT)

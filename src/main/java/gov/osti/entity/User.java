@@ -42,8 +42,8 @@ public class User implements Serializable {
             this.confirmationCode = confirmationCode;
             // new users are blank slate
             this.failedCount = 0;
-            this.active = false;
-            this.verified = false;
+            this.active = true;
+            this.verified = true;
     }
     
     // email address is primary key for Users

@@ -15,6 +15,11 @@ import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.NewCookie;
 import javax.ws.rs.core.Response;
+import java.util.HashMap;
+import org.pac4j.saml.profile.SAML2Profile;
+import java.util.ArrayList;
+import java.net.URI;
+import java.net.URISyntaxException;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.mail.EmailException;
@@ -234,121 +239,38 @@ public class UserServices {
     @Consumes (MediaType.APPLICATION_JSON)
     @Path ("/login")
     public Response login(String object) {
-        LoginRequest request;
- 
-//        if (true) {
-//            return Response
-//                    .status(Response.Status.OK)
-//                    .entity(mapper
-//                            .createObjectNode()
-//                            .put("xsrfToken", "")
-//                            .put("site", "")
-//                            .put("email", "")
-//                            .put("first_name", object)
-//                            .put("last_name", "")
-//                            .put("roles", "")
-//                            .put("pending_roles", "")
-//                            .toString())
-//                    .build();
-//        }
-        
-        try {
-            request = mapper.readValue(object, LoginRequest.class);
-	} catch (IOException e) {
-            // TODO Auto-generated catch block
-            log.warn("JSON Mapper error: " + e.getMessage());
-            return ErrorResponse
-                    .internalServerError("Error processing request.")
-                    .build();
-	}
+
+    	log.info("entered login function");
+    	
         // a User object to use
         User user = null;
         
-        // is this a typical username + password login attempt?
-        if (null!=request.getEmail() && null!=request.getPassword()) {
-
         	// attempt to look up the user
-            user = findUserByEmail(request.getEmail());
+            user = findUserByEmail(getCurrentUserEmail());
+            	
+            
+            //Add the user to the database if they don't already exist.
+            if(user == null) {
+            	registerWithDatabase();
+                user = findUserByEmail(getCurrentUserEmail());
+            }
+            
+            
+            log.info("user found");
            
-            
-            //FIXME
-            //user.setVerified(true);
-            //user.setActive(true);
-            
             
             // ensure the user exists and is verified / active
             if (null==user || !user.isVerified() || !user.isActive()) {
      	
+            	log.info("user not verified");
+            	
             	return ErrorResponse
                     .unauthorized()
                     .build();
             }
             
-            // if account password is expired, we need to inform the user
-            if (user.isPasswordExpired()) {
-            	
-                sendPasswordExpiredEmail(request.getEmail());
-                return ErrorResponse
-                        .unauthorized("Password is expired.")
-                        .build();
-            }
-
-            
-            
-            //#FIXME
-            //request.setPassword("foo");
-            //user.setPassword("foo");
-            
-            // ensure the PASSWORD matches, or implement three-strikes failure policy
-            if (!request.getPassword().equals(user.getPassword())) {
-                log.warn("Password mismatch for " + request.getEmail());
-                
-                // implement three-strikes rule
-                processUserLogin(request.getEmail(), true);
-                // inform the user of the failure in generic terms
-                return ErrorResponse
-                        .unauthorized()
-                        .build();
-            }
-            
-            
-            
             // success, set the failure count to zero
-            processUserLogin(request.getEmail(), false);
-        } else if (null!=request.getConfirmationCode()) {
-            // check the CONFIRMATION CODE token for the EMAIL + CODE
-            Claims claims = DOECodeCrypt.parseJWT(request.getConfirmationCode());
-            String confirmationCode = claims.getId();
-            String email = claims.getSubject();
-
-            user = findUserByEmail(email);
-
-            // user MUST be active and verified, and exist
-            if (null==user || !user.isActive() || !user.isVerified())
-                return ErrorResponse
-                        .unauthorized()
-                        .build();
-
-            // if the EMAIL ADDRESS doesn't match the requesting user, it's an error
-            if (!user.getEmail().equals(email))
-                return ErrorResponse
-                        .forbidden("Confirmation code invalid.")
-                        .build();
-
-            // ensure the confirmation codes match
-            if (!StringUtils.equals(user.getConfirmationCode(), confirmationCode))
-                return ErrorResponse
-                        .forbidden("Confirmation code invalid.")
-                        .build();
-
-            // if successful, we need to CLEAR OUT the user TOKEN
-            resetUserToken(email);
-        } else {
-            // no username+password OR confirmation code, bad request
-            return ErrorResponse
-                    .badRequest("Invalid login request.")
-                    .build();
-        }
+            processUserLogin(getCurrentUserEmail(), false);
     
 	String xsrfToken = DOECodeCrypt.nextRandomString();
 	String accessToken = DOECodeCrypt.generateLoginJWT(user.getApiKey(), xsrfToken);
@@ -370,7 +292,7 @@ public class UserServices {
                 .cookie(cookie)
                 .build();
         } catch ( JsonProcessingException e ) {
-            log.warn("JSON Error logging in " + request.getEmail(), e);
+            log.warn("JSON Error logging in " + getCurrentUserEmail(), e);
             return ErrorResponse
                     .internalServerError("Unable to process login information.")
                     .build();
@@ -578,6 +500,71 @@ public class UserServices {
             return ErrorResponse
                     .status(Response.Status.INTERNAL_SERVER_ERROR, e.getMessage())
                     .build();
+        } finally {
+            em.close();  
+        }
+    }
+    
+    /**
+     * Register the current user with the database.
+     * 
+     */
+    public void registerWithDatabase() {
+    	
+        EntityManager em = DoeServletContextListener.createEntityManager();
+       
+        
+        try {
+            User user = em.find(User.class, getCurrentUserEmail());
+
+            // if there's already a user on file, cannot re-register if VERIFIED
+            if ( user != null && user.isVerified() ) {
+                log.error("An account with this email address already exists.");
+            }	
+
+            // assign as SITE if possible based on the EMAIL, or default to CONTRACTOR
+            String domain = getCurrentUserEmail().substring(getCurrentUserEmail().indexOf("@"));
+            TypedQuery<Site> query = em.createNamedQuery("Site.findByDomain", Site.class)
+                    .setParameter("domain", domain);
+
+            // look up the Site and set CODE, or CONTR if not found
+            List<Site> sites = query.getResultList();
+            String siteCode = ((sites.isEmpty()) ? "CONTR" : sites.get(0).getSiteCode());
+            
+            String apiKey = DOECodeCrypt.nextUniqueString();
+            String confirmationCode = DOECodeCrypt.nextUniqueString();
+            
+            em.getTransaction().begin();
+            
+            // if USER already exists in the persistence context, just update
+            // its values; if not, need to create and persist a new one
+            if (null==user) {
+                user = new User(getCurrentUserEmail(), "", apiKey, confirmationCode);
+                user.setFirstName(getCurrentUserGivenName());
+                user.setLastName(getCurrentUserSurname());
+                //user.setContractNumber(request.getContractNumber());
+                user.setSiteId(siteCode);
+                em.persist(user);
+            } else {
+                user.setApiKey(apiKey);
+                user.setConfirmationCode(confirmationCode);
+                user.setFirstName(getCurrentUserGivenName());
+                user.setLastName(getCurrentUserSurname());
+                //user.setContractNumber(request.getContractNumber());
+                user.setSiteId(siteCode);
+            }
+          
+            em.getTransaction().commit();
+            
+            // send email to user
+            sendRegistrationConfirmation(user.getConfirmationCode(), user.getEmail());
+
+        } catch ( Exception e ) {
+            if ( em.getTransaction().isActive())
+                em.getTransaction().rollback();
+            
+            //we'll deal with duplicate user name here as well...
+            log.error("Persistence Error Registering User", e);
         } finally {
             em.close();  
         }
@@ -794,12 +781,19 @@ public class UserServices {
     @GET
     @Produces (MediaType.APPLICATION_JSON)
     @Consumes ({MediaType.TEXT_HTML, MediaType.APPLICATION_JSON})
-    @RequiresRoles("OSTI")
     @Path("/users")
     public Response getUsers(
             @QueryParam("start") int start,
             @QueryParam("rows") int rows) {
-        EntityManager em = DoeServletContextListener.createEntityManager();
+    	
+    	//Require that the user be OSTI to access
+    	if(!UserServices.getCurrentUser().hasRole("OSTI")) {
+    		return ErrorResponse
+                    .forbidden("Permission denied.")
+                    .build();
+    	}
+    	
+    	EntityManager em = DoeServletContextListener.createEntityManager();
         
         try {
             TypedQuery<User> q = em.createNamedQuery("User.findAllUsers", User.class);
@@ -850,10 +844,17 @@ public class UserServices {
     @GET
     @Produces (MediaType.APPLICATION_JSON)
     @Consumes ({MediaType.TEXT_HTML, MediaType.APPLICATION_JSON})
-    @RequiresRoles("OSTI")
     @Path("/{email}")
     public Response getUser(@PathParam("email") String email) {
-        EntityManager em = DoeServletContextListener.createEntityManager();
+
+    	//Require that the user be OSTI to access
+    	if(!UserServices.getCurrentUser().hasRole("OSTI")) {
+    		return ErrorResponse
+                    .forbidden("Permission denied.")
+                    .build();
+    	}
+    	
+    	EntityManager em = DoeServletContextListener.createEntityManager();
         
         try {
             if (StringUtils.isBlank(email)) 
@@ -980,12 +981,19 @@ public class UserServices {
      * @return JSON of the updated User if successful
      */
     @POST
-    @RequiresRoles("OSTI")
     @Produces(MediaType.APPLICATION_JSON)
     @Consumes(MediaType.APPLICATION_JSON)
     @Path("/update/{email}")
     public Response editUser(@PathParam("email") String email, String json) {
-        EntityManager em = DoeServletContextListener.createEntityManager();
+ 
+    	//Require that the user be OSTI to access
+    	if(!UserServices.getCurrentUser().hasRole("OSTI")) {
+    		return ErrorResponse
+                    .forbidden("Permission denied.")
+                    .build();
+    	}
+    	
+    	EntityManager em = DoeServletContextListener.createEntityManager();
         UserRequest userRequest;
         
         try {
@@ -1162,13 +1170,20 @@ public class UserServices {
      */
     @GET
     @Path ("/requests")
-    @RequiresRoles("OSTI")
     @Produces (MediaType.APPLICATION_JSON)
     public Response loadRequests(
             @QueryParam("start") int start,
             @QueryParam("rows") int rows)
             throws JsonProcessingException {
-        EntityManager em = DoeServletContextListener.createEntityManager();
+
+    	//Require that the user be OSTI to access
+    	if(!UserServices.getCurrentUser().hasRole("OSTI")) {
+    		return ErrorResponse
+                    .forbidden("Permission denied.")
+                    .build();
+    	}
+    	
+    	EntityManager em = DoeServletContextListener.createEntityManager();
         ArrayList<RequestNode> requests = new ArrayList<>();
 
         try {
@@ -1536,6 +1551,20 @@ public class UserServices {
         }
 
     }
+    
+    /**
+     * Perform the handshake between client and server. This simply gives a page for the user to login via saml that will redirect to the doecode login page once they are authenticated with the server.
+     */
+    @GET
+    @Produces (MediaType.TEXT_HTML)
+    @Path ("/handshake")
+    public Response handshake(@QueryParam("source") String source) {
+    	try{
+    		return Response.temporaryRedirect(new URI("http://localhost:8080/doecode/login")).build();
+    	} catch (URISyntaxException e) {
+    		return null;
+    	}
+    }
 
     /**
      * Send a confirmation request for new user registrations.
@@ -1752,5 +1781,32 @@ public class UserServices {
      */
     public static User getCurrentUser() {
        return findUserByEmail(((Principal) SecurityUtils.getSubject().getPrincipals().asList().get(0)).getName());
+    }
+    
+    /**
+     * Get the currently logged in user's email address from the SAML identity provider.
+     * 
+     * @return The authenticated Shiro user's email address.
+     */
+    public static String getCurrentUserEmail() {
+    	return (String) ((ArrayList<String>) ((SAML2Profile) ((HashMap) SecurityUtils.getSubject().getSession().getAttribute("pac4jUserProfiles")).get("SAML2Client")).getAttributes().get("mail")).get(0);
+    }
+    
+    /**
+     * Get the currently logged in user's given name from the SAML identity provider.
+     * 
+     * @return The authenticated Shiro user's given name.
+     */
+    public static String getCurrentUserGivenName() {
+    	return (String) ((ArrayList<String>) ((SAML2Profile) ((HashMap) SecurityUtils.getSubject().getSession().getAttribute("pac4jUserProfiles")).get("SAML2Client")).getAttributes().get("givenName")).get(0);
+    }
+    
+    /**
+     * Get the currently logged in user's surname from the SAML identity provider.
+     * 
+     * @return The authenticated Shiro user's surname.
+     */
+    public static String getCurrentUserSurname() {
+    	return (String) ((ArrayList<String>) ((SAML2Profile) ((HashMap) SecurityUtils.getSubject().getSession().getAttribute("pac4jUserProfiles")).get("SAML2Client")).getAttributes().get("sn")).get(0);
     }
 }

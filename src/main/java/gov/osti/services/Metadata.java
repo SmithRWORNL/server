@@ -432,8 +432,6 @@ public class Metadata {
             @QueryParam("start") int start) 
             throws JsonProcessingException {
         EntityManager em = DoeServletContextListener.createEntityManager();
-
-        log.info("Entered Metadata function");
         
         // get the security user in context
         User user = UserServices.getCurrentUser();
@@ -507,12 +505,19 @@ public class Metadata {
     @Path ("/projects/pending")
     @Consumes (MediaType.APPLICATION_JSON)
     @Produces (MediaType.APPLICATION_JSON)
-    @RequiresRoles("OSTI")
     public Response listProjectsPending(@QueryParam("start") int start,
                                         @QueryParam("rows") int rows,
                                         @QueryParam("site") String siteCode,
                                         @QueryParam("state") String state) {
-        EntityManager em = DoeServletContextListener.createEntityManager();
+    	
+    	//Require that the user be OSTI to access
+    	if(!UserServices.getCurrentUser().hasRole("OSTI")) {
+    		return ErrorResponse
+                    .forbidden("Permission denied.")
+                    .build();
+    	}
+    	
+    	EntityManager em = DoeServletContextListener.createEntityManager();
 
         try {
             // get a JPA CriteriaBuilder instance
@@ -1341,9 +1346,16 @@ public class Metadata {
     @GET
     @Path ("/approve/{codeId}")
     @Produces (MediaType.APPLICATION_JSON)
-    @RequiresRoles("OSTI")
     public Response approve(@PathParam("codeId") Long codeId) {
-        EntityManager em = DoeServletContextListener.createEntityManager();
+    
+    	//Require that the user be OSTI to access
+    	if(!UserServices.getCurrentUser().hasRole("OSTI")) {
+    		return ErrorResponse
+                    .forbidden("Permission denied.")
+                    .build();
+    	}
+    	
+    	EntityManager em = DoeServletContextListener.createEntityManager();
         Subject subject = SecurityUtils.getSubject();
         User user = UserServices.getCurrentUser();
 

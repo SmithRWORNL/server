@@ -25,9 +25,15 @@ public Authentication() {
 
 @GET
 @Path ("/check")
-@RequiresRoles("Admin")
 public Response check() {
 
+	//Require that the user be admin to access
+	if(!UserServices.getCurrentUser().hasRole("Admin")) {
+		return ErrorResponse
+                .forbidden("Permission denied.")
+                .build();
+	}
+	
     User user = UserServices.getCurrentUser();
 
     return Response.ok().build();
