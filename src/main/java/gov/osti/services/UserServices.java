@@ -1560,7 +1560,7 @@ public class UserServices {
     @Path ("/handshake")
     public Response handshake(@QueryParam("source") String source) {
     	try{
-    		return Response.temporaryRedirect(new URI("http://localhost:8080/doecode/login")).build();
+    		return Response.temporaryRedirect(new URI(source + "login")).build();
     	} catch (URISyntaxException e) {
     		return null;
     	}
